@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	STUDENT = "student"
-	TEACHER = "teacher"
+	RoleStudent = "student"
+	RoleTeacher = "teacher"
 )
 
 const (
@@ -75,7 +75,7 @@ func ValidateUser(v *validator.Validator, user *User) {
 	v.Check(user.Lastname != "", "name", "must be provided")
 	v.Check(len(user.Lastname) <= 500, "name", "must not be more than 500 bytes long")
 	v.Check(user.Coin >= 0, "coin", "must be a positive number")
-	v.Check(validator.PermittedValue(user.Role, STUDENT, TEACHER), "role", "must be either student or teacher")
+	v.Check(validator.PermittedValue(user.Role, RoleStudent, RoleTeacher), "role", "must be either student or teacher")
 
 	ValidateEmail(v, user.Email)
 

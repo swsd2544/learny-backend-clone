@@ -28,7 +28,7 @@ func (app application) registerStudentHandler(w http.ResponseWriter, r *http.Req
 		Lastname:    input.Lastname,
 		Email:       input.Email,
 		Coin:        0,
-		Role:        entity.STUDENT,
+		Role:        entity.RoleStudent,
 		CharacterID: 1,
 	}
 	err = user.Password.Set(input.Password)
