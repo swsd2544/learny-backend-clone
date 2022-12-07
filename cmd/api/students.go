@@ -80,7 +80,7 @@ func (app application) loginStudentHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	user, err := app.repositories.Users.GetUsersWithEmail(input.Email)
+	user, err := app.repositories.Users.GetUserWithEmail(input.Email)
 	if err != nil {
 		switch {
 		case errors.Is(err, repository.ErrRecordNotFound):

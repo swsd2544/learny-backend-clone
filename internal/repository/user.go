@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"github.com/jackc/pgx/v5"
@@ -47,7 +48,7 @@ func (r UserRepository) Insert(user *entity.User) error {
 func (r UserRepository) GetUsersWithClassID(classID int64) ([]*entity.User, error) {
 	query := `SELECT users.id, users.firstname, users.lastname, users.email, 
     users.hash_password, users.coin, users.role, users.version FROM users INNER JOIN enrollments
-    ON users.id = enrolls.user_id WHERE enrolls.class_id = $1`
+    ON users.id = enrollments.user_id WHERE enrollments.class_id = $1`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -80,7 +81,7 @@ func (r UserRepository) GetUsersWithClassID(classID int64) ([]*entity.User, erro
 	return users, nil
 }
 
-func (r UserRepository) GetUsersWithID(userID int64) (*entity.User, error) {
+func (r UserRepository) GetUserWithID(userID int64) (*entity.User, error) {
 	query := `SELECT id, firstname, lastname, email, hash_password, 
        coin, role, version FROM users WHERE id = $1`
 
@@ -102,7 +103,7 @@ func (r UserRepository) GetUsersWithID(userID int64) (*entity.User, error) {
 	return &user, nil
 }
 
-func (r UserRepository) GetUsersWithEmail(email string) (*entity.User, error) {
+func (r UserRepository) GetUserWithEmail(email string) (*entity.User, error) {
 	query := `SELECT id, username, firstname, lastname, hash_password, 
        coin, role, version, character_id FROM users WHERE email = $1`
 
@@ -113,6 +114,33 @@ func (r UserRepository) GetUsersWithEmail(email string) (*entity.User, error) {
 		Email: email,
 	}
 	err := r.db.QueryRow(ctx, query, email).Scan(&user.ID, &user.Username, &user.Firstname, &user.Lastname,
+		&user.Password.Hash, &user.Coin, &user.Role, &user.Version, &user.CharacterID)
+	if err != nil {
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &user, nil
+}
+
+func (r UserRepository) GetUserWithToken(scope, tokenPlaintext string) (*entity.User, error) {
+	tokenHash := sha256.Sum256([]byte(tokenPlaintext))
+
+	query := `SELECT id, username, firstname, lastname, email, hash_password, 
+       coin, role, version, character_id FROM users INNER JOIN tokens ON users.id = tokens.user_id
+       WHERE tokens.hash = $1 AND tokens.scope = $2 AND tokens.expiry > $3`
+
+	args := []any{tokenHash[:], scope, time.Now()}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	var user entity.User
+	err := r.db.QueryRow(ctx, query, args...).Scan(&user.ID, &user.Username, &user.Firstname, &user.Lastname,
 		&user.Password.Hash, &user.Coin, &user.Role, &user.Version, &user.CharacterID)
 	if err != nil {
 		switch {
