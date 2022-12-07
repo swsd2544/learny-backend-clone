@@ -6,6 +6,7 @@ import (
 	"github.com/swsd2544/learny-backend-clone/internal/repository"
 	"github.com/swsd2544/learny-backend-clone/internal/validator"
 	"net/http"
+	"time"
 )
 
 func (app application) registerStudentHandler(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +102,13 @@ func (app application) loginStudentHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err = writeJSON(w, http.StatusCreated, envelope{"user": *user}, nil)
+	token, err := app.repositories.Tokens.New(user.ID, 24*time.Hour, entity.ScopeAuthentication)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = writeJSON(w, http.StatusCreated, envelope{"token": *token}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
