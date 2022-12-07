@@ -36,6 +36,12 @@ type User struct {
 	CharacterID int64     `json:"character_id"`
 }
 
+var AnonymousUser = &User{}
+
+func (u *User) IsAnonymous() bool {
+	return u == AnonymousUser
+}
+
 func (p *password) Set(plaintextPassword string) error {
 	hash, err := bcrypt.GenerateFromPassword([]byte(plaintextPassword), SALT)
 	if err != nil {

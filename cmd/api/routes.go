@@ -7,6 +7,7 @@ import (
 
 func (app application) routes() http.Handler {
 	r := mux.NewRouter()
+	r.Use(app.recoverPanic, app.authenticate)
 	r.HandleFunc("/v1/students", app.registerStudentHandler).Methods(http.MethodPost)
 	r.HandleFunc("/v1/students/login", app.loginStudentHandler).Methods(http.MethodPut)
 	return r

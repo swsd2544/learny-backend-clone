@@ -90,6 +90,21 @@ func readJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	return nil
 }
 
+func readBool(qs url.Values, key string, defaultValue bool) bool {
+	s := qs.Get(key)
+
+	if s == "" {
+		return defaultValue
+	}
+
+	b, err := strconv.ParseBool(s)
+	if err != nil {
+		return defaultValue
+	}
+
+	return b
+}
+
 func readString(qs url.Values, key string, defaultValue string) string {
 	s := qs.Get(key)
 
