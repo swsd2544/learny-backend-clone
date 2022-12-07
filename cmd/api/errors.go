@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
-	"go.uber.org/zap"
 	"net/http"
 )
 
 func (app application) logError(r *http.Request, err error) {
-	app.logger.Error(err.Error(), zap.String("method", r.Method), zap.String("url", r.URL.String()))
+	app.logger.Error().
+		Err(err).
+		Str("method", r.Method).
+		Str("url", r.URL.String())
 }
 
 func (app application) errorResponse(w http.ResponseWriter, r *http.Request, status int, message any) {
@@ -41,7 +43,7 @@ func (app application) badRequestResponse(w http.ResponseWriter, r *http.Request
 	app.errorResponse(w, r, http.StatusBadRequest, err.Error())
 }
 
-func (app application) failedValidationResponse(w http.ResponseWriter, r *http.Request, errors error) {
+func (app application) failedValidationResponse(w http.ResponseWriter, r *http.Request, errors map[string]string) {
 	app.errorResponse(w, r, http.StatusUnprocessableEntity, errors)
 }
 
@@ -73,7 +75,7 @@ func (app application) authenticationRequiredResponse(w http.ResponseWriter, r *
 }
 
 func (app application) inactiveAccountResponse(w http.ResponseWriter, r *http.Request) {
-	message := "your uesr account must be activated to access this resource"
+	message := "your user account must be activated to access this resource"
 	app.errorResponse(w, r, http.StatusForbidden, message)
 }
 

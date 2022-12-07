@@ -2,16 +2,11 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
-	"fmt"
-	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 	"github.com/swsd2544/learny-backend-clone/internal/repository"
-	passwordvalidator "github.com/wagslane/go-password-validator"
-	"go.uber.org/zap"
 	"os"
-	"syscall"
 	"time"
 )
 
@@ -25,8 +20,7 @@ type config struct {
 
 type application struct {
 	config       config
-	logger       *zap.Logger
-	validate     *validator.Validate
+	logger       zerolog.Logger
 	repositories repository.Repositories
 }
 
@@ -39,44 +33,31 @@ func main() {
 
 	flag.Parse()
 
-	logger, err := newLogger(config.environment)
-	if err != nil {
-		panic(err)
-	}
+	logger := zerolog.New(os.Stdout)
 
+	logger.Info().
+		Str("db-dsn", config.db.dsn).
+		Msg("connecting to the db server")
 	db, err := openDB(config.db.dsn)
 	if err != nil {
-		logger.Fatal("error open db connections", zap.Error(err))
+		logger.Fatal().
+			Err(err).
+			Msgf("error opening db connection")
 	}
 
 	repositories := repository.New(db)
-	validate := validator.New()
-
-	err = validate.RegisterValidation(
-		"password",
-		func(fl validator.FieldLevel) bool {
-			entropy := passwordvalidator.GetEntropy("pa55word")
-			err := passwordvalidator.Validate("some password", entropy)
-			if err != nil {
-				return false
-			}
-			return true
-		},
-	)
-	if err != nil {
-		logger.Fatal("error register password validation", zap.Error(err))
-	}
 
 	app := application{
 		config:       config,
 		logger:       logger,
-		validate:     validate,
 		repositories: repositories,
 	}
 
 	err = app.serve()
 	if err != nil {
-		logger.Fatal("error closing server", zap.Error(err))
+		logger.Fatal().
+			Err(err).
+			Msg("error closing server")
 	}
 }
 
@@ -95,28 +76,4 @@ func openDB(dsn string) (*pgxpool.Pool, error) {
 	}
 
 	return db, nil
-}
-
-func newLogger(env string) (logger *zap.Logger, err error) {
-	var config zap.Config
-	switch env {
-	case "development", "staging":
-		config = zap.NewDevelopmentConfig()
-	case "production":
-		config = zap.NewProductionConfig()
-	default:
-		return nil, fmt.Errorf("misformat environment (development|staging|production): %v", env)
-	}
-
-	logger, err = config.Build()
-	if err != nil {
-		return nil, err
-	}
-
-	err = logger.Sync()
-	if err != nil && !errors.Is(err, syscall.ENOTTY) {
-		return nil, err
-	}
-
-	return logger, nil
 }

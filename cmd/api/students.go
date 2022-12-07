@@ -4,26 +4,22 @@ import (
 	"errors"
 	"github.com/swsd2544/learny-backend-clone/internal/entity"
 	"github.com/swsd2544/learny-backend-clone/internal/repository"
+	"github.com/swsd2544/learny-backend-clone/internal/validator"
 	"net/http"
 )
 
 func (app application) registerStudentHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Username  string `json:"username" validate:"required"`
-		Firstname string `json:"firstname" validate:"required"`
-		Lastname  string `json:"lastname" validate:"required"`
-		Email     string `json:"email" validate:"required,email"`
-		Password  string `json:"password" validate:"required,regexp="`
+		Username  string `json:"username"`
+		Firstname string `json:"firstname"`
+		Lastname  string `json:"lastname"`
+		Email     string `json:"email"`
+		Password  string `json:"password"`
 	}
 	err := readJSON(w, r, &input)
 	if err != nil {
 		app.badRequestResponse(w, r, err)
 		return
-	}
-
-	err = app.validate.Struct(input)
-	if err != nil {
-		app.failedValidationResponse(w, r, err)
 	}
 
 	user := &entity.User{
@@ -35,16 +31,24 @@ func (app application) registerStudentHandler(w http.ResponseWriter, r *http.Req
 		Role:        entity.STUDENT,
 		CharacterID: 1,
 	}
-	err = user.SetPassword(input.Password)
+	err = user.Password.Set(input.Password)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	v := validator.New()
+	if entity.ValidateUser(v, user); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
 	}
 
 	err = app.repositories.Users.Insert(user)
 	if err != nil {
 		switch {
 		case errors.Is(err, repository.ErrDuplicateEmail):
-			app.failedValidationResponse(w, r, err)
+			v.AddError("email", "a user with this email address already exists")
+			app.failedValidationResponse(w, r, v.Errors)
 		default:
 			app.serverErrorResponse(w, r, err)
 		}
@@ -59,8 +63,8 @@ func (app application) registerStudentHandler(w http.ResponseWriter, r *http.Req
 
 func (app application) loginStudentHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Email    string `json:"email" validate:"required,email"`
-		Password string `json:"password" validate:"required,regexp=^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{8,}$"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 	err := readJSON(w, r, &input)
 	if err != nil {
@@ -68,28 +72,33 @@ func (app application) loginStudentHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err = app.validate.Struct(input)
-	if err != nil {
-		app.failedValidationResponse(w, r, err)
+	v := validator.New()
+	entity.ValidateEmail(v, input.Email)
+
+	if !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
 	}
 
 	user, err := app.repositories.Users.GetUsersWithEmail(input.Email)
 	if err != nil {
 		switch {
 		case errors.Is(err, repository.ErrRecordNotFound):
-			app.failedValidationResponse(w, r, err)
+			app.invalidCredentialsResponse(w, r)
 		default:
 			app.serverErrorResponse(w, r, err)
 		}
 		return
 	}
 
-	ok, err := user.Matches(input.Password)
+	ok, err := user.Password.Matches(input.Password)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
+		return
 	}
 	if !ok {
 		app.invalidCredentialsResponse(w, r)
+		return
 	}
 
 	err = writeJSON(w, http.StatusCreated, envelope{"user": *user}, nil)

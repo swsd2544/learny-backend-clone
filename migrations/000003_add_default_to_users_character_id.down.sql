@@ -1,0 +1,7 @@
+BEGIN;
+
+ALTER TABLE users
+    ALTER COLUMN character_id DROP DEFAULT,
+    ALTER COLUMN character_id DROP NOT NULL;
+
+COMMIT;

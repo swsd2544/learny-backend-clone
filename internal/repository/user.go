@@ -21,11 +21,11 @@ type UserRepository struct {
 
 func (r UserRepository) Insert(user *entity.User) error {
 	query := `INSERT INTO users (username, firstname, lastname, email, hash_password,
-    coin, users.role) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, 
+    coin, role) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, 
     created_at, version`
 
 	args := []any{user.Username, user.Firstname, user.Lastname, user.Email,
-		user.HashPassword, user.Coin, user.Role}
+		user.Password.Hash, user.Coin, user.Role}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -82,14 +82,14 @@ func (r UserRepository) GetUsersWithClassID(classID int64) ([]*entity.User, erro
 
 func (r UserRepository) GetUsersWithID(userID int64) (*entity.User, error) {
 	query := `SELECT id, firstname, lastname, email, hash_password, 
-       coin, users.role, version FROM users WHERE id = $1`
+       coin, role, version FROM users WHERE id = $1`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	var user entity.User
 	err := r.db.QueryRow(ctx, query, userID).Scan(&user.ID, &user.Firstname, &user.Lastname,
-		&user.Email, &user.HashPassword, &user.Coin, &user.Role, &user.Version)
+		&user.Email, &user.Password.Hash, &user.Coin, &user.Role, &user.Version)
 	if err != nil {
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
@@ -104,14 +104,16 @@ func (r UserRepository) GetUsersWithID(userID int64) (*entity.User, error) {
 
 func (r UserRepository) GetUsersWithEmail(email string) (*entity.User, error) {
 	query := `SELECT id, username, firstname, lastname, hash_password, 
-       coin, users.role, version, character_id FROM users WHERE email = $1`
+       coin, role, version, character_id FROM users WHERE email = $1`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	var user entity.User
-	err := r.db.QueryRow(ctx, query, email).Scan(&user.ID, &user.Firstname, &user.Lastname,
-		&user.HashPassword, &user.Coin, &user.Role, &user.Version, &user.CharacterID)
+	user := entity.User{
+		Email: email,
+	}
+	err := r.db.QueryRow(ctx, query, email).Scan(&user.ID, &user.Username, &user.Firstname, &user.Lastname,
+		&user.Password.Hash, &user.Coin, &user.Role, &user.Version, &user.CharacterID)
 	if err != nil {
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
@@ -126,13 +128,13 @@ func (r UserRepository) GetUsersWithEmail(email string) (*entity.User, error) {
 
 func (r UserRepository) Update(user *entity.User) error {
 	query := `UPDATE users SET firstname=$1, lastname=$2, email=$3, hash_password=$4, 
-    coin=$5, users.role=$6, version = version + 1 WHERE id = $7 AND version = $8 RETURNING version`
+    coin=$5, role=$6, version = version + 1 WHERE id = $7 AND version = $8 RETURNING version`
 
 	args := []any{
 		user.Firstname,
 		user.Lastname,
 		user.Email,
-		user.HashPassword,
+		user.Password.Hash,
 		user.Coin,
 		user.Role,
 		user.ID,
